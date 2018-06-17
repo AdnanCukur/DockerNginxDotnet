@@ -1,0 +1,34 @@
+﻿# Step 1 - Build app
+FROM microsoft/dotnet:2.1-sdk AS build-env
+WORKDIR /app
+COPY . .
+
+RUN dotnet restore DotnetNginxSameContainer.csproj
+
+RUN dotnet publish DotnetNginxSameContainer.csproj -c Release -o /app
+
+# Step 2 - Runtime Image
+FROM microsoft/dotnet:2.1-aspnetcore-runtime 
+
+# Install nginx
+RUN apt-get update
+RUN apt-get install -y nginx
+
+WORKDIR /app
+
+# Replace nginx config with new
+RUN rm /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx
+
+# When building from windows nginx won't start without this line.
+#RUN chmod 755 /etc/nginx/nginx.conf
+
+# Copy & Allow startup.sh script to be executed by all
+COPY ./startup.sh .
+RUN chmod 755 startup.sh
+
+ENV ASPNETCORE_URLS http://+:5000
+# Copy published app files from Step 1
+COPY --from=build-env /app .
+
+ENTRYPOINT ["sh", "startup.sh"]
